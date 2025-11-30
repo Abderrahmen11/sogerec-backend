@@ -1,0 +1,52 @@
+<?php
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\Api\TicketController;
+use App\Http\Controllers\Api\InterventionController;
+use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\UserController;
+
+// Sanctum routes with session support but without traditional CSRF verification
+Route::middleware(['web'])->group(function () {
+    // Sanctum CSRF Cookie Route - accept GET and POST so browser and tools work
+    Route::match(['get', 'post'], '/sanctum/csrf-cookie', function (Request $request) {
+        // Accessing session forces Laravel to initialize it and set cookies
+        $request->session()->regenerateToken();
+        return response()->noContent();
+    });
+
+    // Public auth routes
+    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/register', [AuthController::class, 'register']);
+});
+
+// Protected API routes with Sanctum auth
+Route::middleware(['web', 'auth:sanctum'])->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/user', fn(Request $request) => $request->user());
+
+    // Users
+    Route::put('/users/profile', [UserController::class, 'updateProfile']);
+    Route::post('/users/change-password', [UserController::class, 'changePassword']);
+    Route::apiResource('users', UserController::class);
+
+    // Tickets
+    Route::get('/tickets/search', [TicketController::class, 'search']);
+    Route::patch('/tickets/{ticket}/status', [TicketController::class, 'updateStatus']);
+    Route::post('/tickets/{ticket}/comments', [TicketController::class, 'addComment']);
+    Route::apiResource('tickets', TicketController::class);
+
+    // Interventions
+    Route::get('/interventions/planning', [InterventionController::class, 'planning']);
+    Route::patch('/interventions/{intervention}/status', [InterventionController::class, 'updateStatus']);
+    Route::post('/interventions/{intervention}/report', [InterventionController::class, 'submitReport']);
+    Route::apiResource('interventions', InterventionController::class);
+
+    // Notifications
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::patch('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+    Route::patch('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::apiResource('notifications', NotificationController::class)->only(['index', 'destroy']);
+});
