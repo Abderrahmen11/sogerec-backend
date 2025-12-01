@@ -13,7 +13,17 @@ class TicketController extends Controller
      */
     public function index(Request $request)
     {
+        $user = $request->user();
         $query = Ticket::with(['user', 'assignedTo']);
+
+        // Role-based filtering
+        if ($user->role === 'client' || $user->role === 'user') {
+            $query->where('user_id', $user->id);
+        } elseif ($user->role === 'technician') {
+            // Technicians see tickets assigned to them
+            $query->where('assigned_to', $user->id);
+        }
+        // Admins see all
 
         // Filter by status if provided
         if ($request->has('status')) {

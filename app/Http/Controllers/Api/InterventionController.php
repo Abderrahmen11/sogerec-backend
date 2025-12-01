@@ -13,7 +13,20 @@ class InterventionController extends Controller
      */
     public function index(Request $request)
     {
+        $user = $request->user();
         $query = Intervention::with(['ticket', 'user']);
+
+        // Role-based filtering
+        if ($user->role === 'client' || $user->role === 'user') {
+            // Clients see interventions for their tickets
+            $query->whereHas('ticket', function ($q) use ($user) {
+                $q->where('user_id', $user->id);
+            });
+        } elseif ($user->role === 'technician') {
+            // Technicians see their assigned interventions
+            $query->where('user_id', $user->id);
+        }
+        // Admins see all
 
         // Filter by status if provided
         if ($request->has('status')) {
