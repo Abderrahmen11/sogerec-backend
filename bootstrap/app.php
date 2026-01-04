@@ -17,6 +17,10 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
 
+        $middleware->alias([
+            'role' => \App\Http\Middleware\CheckRole::class,
+        ]);
+
         // Exclude CSRF token verification for sanctum CSRF endpoint and login/register
         $middleware->validateCsrfTokens(except: [
             'api/sanctum/csrf-cookie',

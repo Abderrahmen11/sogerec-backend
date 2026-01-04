@@ -2,11 +2,12 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\AuthController;
+use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\InterventionController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\AdminStatsController;
 
 // Sanctum routes with session support but without traditional CSRF verification
 Route::middleware(['web'])->group(function () {
@@ -27,24 +28,29 @@ Route::middleware(['web', 'auth:sanctum'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', fn(Request $request) => $request->user());
 
-    // Users
-    Route::put('/users/profile', [UserController::class, 'updateProfile']);
-    Route::post('/users/change-password', [UserController::class, 'changePassword']);
-    Route::apiResource('users', UserController::class);
+    // Users - Admin only
+    Route::middleware('role:admin')->group(function () {
+        Route::get('/admin/stats', [AdminStatsController::class, 'index']);
+        Route::apiResource('users', UserController::class);
+        Route::put('/users/profile', [UserController::class, 'updateProfile']);
+        Route::post('/users/change-password', [UserController::class, 'changePassword']);
+    });
 
-    // Tickets
+    // Tickets - All authenticated users (internal controller handles filtering)
     Route::get('/tickets/search', [TicketController::class, 'search']);
     Route::patch('/tickets/{ticket}/status', [TicketController::class, 'updateStatus']);
     Route::post('/tickets/{ticket}/comments', [TicketController::class, 'addComment']);
     Route::apiResource('tickets', TicketController::class);
 
-    // Interventions
-    Route::get('/interventions/planning', [InterventionController::class, 'planning']);
-    Route::patch('/interventions/{intervention}/status', [InterventionController::class, 'updateStatus']);
-    Route::post('/interventions/{intervention}/report', [InterventionController::class, 'submitReport']);
-    Route::apiResource('interventions', InterventionController::class);
+    // Interventions - Technician & Admin only
+    Route::middleware('role:technician,admin')->group(function () {
+        Route::get('/interventions/planning', [InterventionController::class, 'planning']);
+        Route::patch('/interventions/{intervention}/status', [InterventionController::class, 'updateStatus']);
+        Route::post('/interventions/{intervention}/report', [InterventionController::class, 'submitReport']);
+        Route::apiResource('interventions', InterventionController::class);
+    });
 
-    // Notifications
+    // Notifications - All authenticated users
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
     Route::patch('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
     Route::patch('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
