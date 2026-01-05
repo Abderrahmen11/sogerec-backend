@@ -64,4 +64,12 @@ class User extends Authenticatable
     {
         return $this->role === 'client';
     }
+
+    /**
+     * Get the interventions for the user.
+     */
+    public function interventions()
+    {
+        return $this->hasMany(Intervention::class);
+    }
 }
