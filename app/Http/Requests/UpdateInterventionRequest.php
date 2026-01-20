@@ -22,7 +22,7 @@ class UpdateInterventionRequest extends FormRequest
             'scheduled_at' => 'sometimes|date',
             'ticket_id' => 'nullable|exists:tickets,id',
             'user_id' => 'sometimes|exists:users,id',
-            'status' => 'sometimes|in:planned,in_progress,completed,cancelled',
+            'status' => 'sometimes|in:pending,scheduled,in_progress,completed,cancelled',
         ];
     }
 }

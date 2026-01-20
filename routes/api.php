@@ -42,13 +42,24 @@ Route::middleware(['web', 'auth:sanctum'])->group(function () {
     Route::post('/tickets/{ticket}/comments', [TicketController::class, 'addComment']);
     Route::apiResource('tickets', TicketController::class);
 
-    // Interventions - Technician & Admin only
+    // Interventions - All authenticated users (internal controller handles filtering for index/show)
+    Route::get('/interventions', [InterventionController::class, 'index']);
+    Route::get('/interventions/{id}', [InterventionController::class, 'show']);
+
+    // Interventions - Management (Admins & Technicians)
     Route::middleware('role:technician,admin')->group(function () {
         Route::get('/interventions/planning', [InterventionController::class, 'planning']);
-        Route::patch('/interventions/{intervention}/status', [InterventionController::class, 'updateStatus']);
-        Route::post('/interventions/{intervention}/report', [InterventionController::class, 'submitReport']);
-        Route::apiResource('interventions', InterventionController::class);
+        Route::patch('/interventions/{id}/status', [InterventionController::class, 'updateStatus']);
+        Route::post('/interventions/{id}/report', [InterventionController::class, 'submitReport']);
     });
+
+    // Interventions - Admin only
+    Route::middleware('role:admin')->group(function () {
+        Route::post('/interventions', [InterventionController::class, 'store']);
+        Route::put('/interventions/{id}', [InterventionController::class, 'update']);
+        Route::delete('/interventions/{id}', [InterventionController::class, 'destroy']);
+    });
+
 
     // Notifications - All authenticated users
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);

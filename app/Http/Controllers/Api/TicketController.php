@@ -70,7 +70,12 @@ class TicketController extends Controller
             'user_id' => $request->user()->id,
         ]);
 
+        // Notify admins
+        $admins = \App\Models\User::where('role', 'admin')->get();
+        \Illuminate\Support\Facades\Notification::send($admins, new \App\Notifications\NewTicketNotification($ticket));
+
         return response()->json($ticket->load(['user', 'assignedTo']), 201);
+
     }
 
     /**

@@ -15,18 +15,18 @@ class InterventionFactory extends Factory
             'user_id' => User::factory()->technician(),
             'title' => fake()->sentence(3),
             'description' => fake()->paragraph(2),
-            'status' => fake()->randomElement(['planned', 'in_progress', 'completed', 'cancelled']),
+            'status' => fake()->randomElement(['pending', 'scheduled', 'in_progress', 'completed', 'cancelled']),
             'scheduled_at' => fake()->dateTimeBetween('now', '+2 weeks'),
         ];
     }
 
     /**
-     * State for planned interventions
+     * State for scheduled interventions
      */
-    public function planned(): static
+    public function scheduled(): static
     {
         return $this->state(fn(array $attributes) => [
-            'status' => 'planned',
+            'status' => 'scheduled',
         ]);
     }
 

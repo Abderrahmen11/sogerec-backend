@@ -4,7 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Intervention;
+use App\Models\User;
+use App\Notifications\InterventionAssignedNotification;
+use App\Notifications\InterventionStatusUpdatedNotification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification;
+
 
 class InterventionController extends Controller
 {
@@ -41,10 +46,27 @@ class InterventionController extends Controller
     /**
      * Get a single intervention
      */
-    public function show($id)
+    public function show($id, Request $request)
     {
-        $intervention = Intervention::with(['ticket', 'user'])->findOrFail($id);
-        return response()->json($intervention);
+        $intervention = Intervention::with(['ticket.user', 'user'])->findOrFail($id);
+        $user = $request->user();
+
+        // Admin can see everything
+        if ($user->role === 'admin') {
+            return response()->json($intervention);
+        }
+
+        // Technician can see what's assigned to them
+        if ($user->role === 'technician' && $intervention->user_id === $user->id) {
+            return response()->json($intervention);
+        }
+
+        // Client can see interventions for their tickets
+        if ($intervention->ticket && $intervention->ticket->user_id === $user->id) {
+            return response()->json($intervention);
+        }
+
+        return response()->json(['message' => 'Unauthorized access to this intervention'], 403);
     }
 
     /**
@@ -54,18 +76,39 @@ class InterventionController extends Controller
     {
         $request->validate([
             'ticket_id' => 'required|exists:tickets,id',
-            'user_id' => 'required|exists:users,id',
-            'scheduled_at' => 'required|date',
+            'user_id' => 'sometimes|nullable|exists:users,id',
+            'scheduled_at' => 'sometimes|nullable|date',
+            'title' => 'sometimes|string|max:255',
             'description' => 'sometimes|string',
         ]);
 
+        // Automatic status logic
+        $status = Intervention::STATUS_PENDING;
+        if ($request->filled('user_id') && $request->filled('scheduled_at')) {
+            $status = Intervention::STATUS_SCHEDULED;
+        }
+
         $intervention = Intervention::create([
+            'title' => $request->title ?? "Intervention for Ticket #{$request->ticket_id}",
             'ticket_id' => $request->ticket_id,
             'user_id' => $request->user_id,
             'scheduled_at' => $request->scheduled_at,
             'description' => $request->description,
-            'status' => 'scheduled',
+            'status' => $status,
         ]);
+
+        // Notify technician if scheduled
+        if ($status === Intervention::STATUS_SCHEDULED && $intervention->user_id) {
+            $technician = User::find($request->user_id);
+            if ($technician) {
+                $technician->notify(new InterventionAssignedNotification($intervention));
+            }
+
+            // Sync ticket status to open when an intervention is scheduled
+            if ($intervention->ticket) {
+                $intervention->ticket->update(['status' => 'open']);
+            }
+        }
 
         return response()->json($intervention->load(['ticket', 'user']), 201);
     }
@@ -105,11 +148,50 @@ class InterventionController extends Controller
     public function updateStatus($id, Request $request)
     {
         $request->validate([
-            'status' => 'required|in:scheduled,in_progress,completed,cancelled',
+            'status' => 'required|in:pending,scheduled,in_progress,completed,cancelled',
         ]);
 
         $intervention = Intervention::findOrFail($id);
-        $intervention->update(['status' => $request->status]);
+        $user = $request->user();
+
+        // Ownership check – Technicians can only update their own interventions
+        if ($user->role === 'technician' && $intervention->user_id !== $user->id) {
+            return response()->json(['message' => 'Unauthorized. This intervention is not assigned to you.'], 403);
+        }
+
+        $oldStatus = $intervention->status;
+        $newStatus = $request->status;
+
+        // Strict Transition Validation
+        if ($newStatus === Intervention::STATUS_IN_PROGRESS && $oldStatus !== Intervention::STATUS_SCHEDULED) {
+            return response()->json(['message' => 'Intervention must be scheduled before it can be started.'], 422);
+        }
+
+        if ($newStatus === Intervention::STATUS_COMPLETED && $oldStatus !== Intervention::STATUS_IN_PROGRESS) {
+            return response()->json(['message' => 'Intervention must be in progress before it can be completed.'], 422);
+        }
+
+        $intervention->update(['status' => $newStatus]);
+
+        // Sync ticket status
+        if ($intervention->ticket) {
+            $ticketStatus = 'open';
+            if ($newStatus === Intervention::STATUS_IN_PROGRESS) {
+                $ticketStatus = 'in_progress';
+            } elseif ($newStatus === Intervention::STATUS_COMPLETED) {
+                $ticketStatus = 'closed';
+            } elseif ($newStatus === Intervention::STATUS_PENDING) {
+                $ticketStatus = 'open'; // Or whatever makes sense for a pending intervention
+            }
+            $intervention->ticket->update(['status' => $ticketStatus]);
+        }
+
+        // Notify admins if status changed
+        if ($oldStatus !== $newStatus) {
+            $admins = User::where('role', 'admin')->get();
+            $message = "Intervention #{$intervention->id} is now " . str_replace('_', ' ', $newStatus);
+            Notification::send($admins, new InterventionStatusUpdatedNotification($intervention, $message));
+        }
 
         return response()->json($intervention->load(['ticket', 'user']));
     }
@@ -124,14 +206,32 @@ class InterventionController extends Controller
         ]);
 
         $intervention = Intervention::findOrFail($id);
+        $user = $request->user();
 
-        // For now, just mark as completed. You can add a report field to the table later
+        // Ownership check – Technicians can only submit reports for their own interventions
+        if ($user->role === 'technician' && $intervention->user_id !== $user->id) {
+            return response()->json(['message' => 'Unauthorized. This intervention is not assigned to you.'], 403);
+        }
+
+        // Mark as completed
         $intervention->update([
-            'status' => 'completed',
+            'status' => Intervention::STATUS_COMPLETED,
             'completed_at' => now(),
         ]);
 
+        // Sync ticket status
+        if ($intervention->ticket) {
+            $intervention->ticket->update(['status' => 'closed']);
+        }
+
+        // Notify admins
+        $admins = User::where('role', 'admin')->get();
+        $message = "Intervention #{$intervention->id} has been completed and report submitted";
+        Notification::send($admins, new InterventionStatusUpdatedNotification($intervention, $message));
+
         return response()->json(['message' => 'Report submitted successfully', 'intervention' => $intervention]);
+
+
     }
 
     /**
