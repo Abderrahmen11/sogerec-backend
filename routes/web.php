@@ -8,8 +8,13 @@ Route::get('/up', function () {
 });
 
 Route::get('/health', function () {
-    return response()->json(['status' => 'ok'], 200);
-});
+    return response()->json([
+        'status' => 'ok',
+        'app' => env('APP_NAME', 'Laravel'),
+        'environment' => env('APP_ENV', 'production'),
+        'time' => now()->toDateTimeString(),
+    ], 200);
+})->withoutMiddleware([\Illuminate\Auth\Middleware\Authenticate::class, \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class]);
 
 // API Documentation or main page
 Route::get('/', function () {
