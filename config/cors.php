@@ -17,7 +17,7 @@ return [
 
     'paths' => ['api/*', 'sanctum/csrf-cookie'],
     'allowed_methods' => ['*'],
-    'allowed_origins' => ['http://localhost:5173', 'http://localhost:5174'],
+    'allowed_origins' => ['http://localhost:5173', 'http://localhost:5174', 'https://sogerec.netlify.app'],
     'allowed_headers' => ['*'],
     'exposed_headers' => ['Set-Cookie', 'X-CSRF-TOKEN'],
     'supports_credentials' => true,
