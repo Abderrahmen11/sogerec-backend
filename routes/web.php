@@ -7,6 +7,10 @@ Route::get('/up', function () {
     return response()->json(['status' => 'ok']);
 });
 
+Route::get('/health', function () {
+    return response()->json(['status' => 'ok'], 200);
+});
+
 // API Documentation or main page
 Route::get('/', function () {
     return response()->json([
