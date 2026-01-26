@@ -17,6 +17,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
 
+        // Allow Railway health check host
+        $middleware->trustHosts(at: [
+            'healthcheck.railway.app',
+        ], subdomains: false);
+
         $middleware->alias([
             'role' => \App\Http\Middleware\CheckRole::class,
         ]);
