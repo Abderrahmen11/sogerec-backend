@@ -9,22 +9,12 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\AdminStatsController;
 
-// Sanctum routes with session support but without traditional CSRF verification
-Route::middleware(['web'])->group(function () {
-    // Sanctum CSRF Cookie Route - accept GET and POST so browser and tools work
-    Route::match(['get', 'post'], '/sanctum/csrf-cookie', function (Request $request) {
-        // Accessing session forces Laravel to initialize it and set cookies
-        $request->session()->regenerateToken();
-        return response()->noContent();
-    });
-
-    // Public auth routes
-    Route::post('/login', [AuthController::class, 'login']);
-    Route::post('/register', [AuthController::class, 'register']);
-});
+// Public auth routes
+Route::post('/login', [AuthController::class, 'login']);
+Route::post('/register', [AuthController::class, 'register']);
 
 // Protected API routes with Sanctum auth
-Route::middleware(['web', 'auth:sanctum'])->group(function () {
+Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', fn(Request $request) => $request->user());
 

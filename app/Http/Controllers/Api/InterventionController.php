@@ -22,7 +22,7 @@ class InterventionController extends Controller
         $query = Intervention::with(['ticket', 'user']);
 
         // Role-based filtering
-        if ($user->role === 'client' || $user->role === 'user') {
+        if ($user->role === 'client') {
             // Clients see interventions for their tickets
             $query->whereHas('ticket', function ($q) use ($user) {
                 $q->where('user_id', $user->id);
@@ -243,13 +243,13 @@ class InterventionController extends Controller
 
         // Filter by date range if provided
         if ($request->has('start_date')) {
-            $query->where('scheduled_date', '>=', $request->start_date);
+            $query->where('scheduled_at', '>=', $request->start_date);
         }
         if ($request->has('end_date')) {
-            $query->where('scheduled_date', '<=', $request->end_date);
+            $query->where('scheduled_at', '<=', $request->end_date);
         }
 
-        $interventions = $query->orderBy('scheduled_date', 'asc')->get();
+        $interventions = $query->orderBy('scheduled_at', 'asc')->get();
 
         return response()->json($interventions);
     }

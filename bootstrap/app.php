@@ -15,8 +15,6 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->statefulApi();
-
         // Allow Railway health check host
         $middleware->trustHosts(at: [
             'healthcheck.railway.app',
@@ -26,11 +24,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \App\Http\Middleware\CheckRole::class,
         ]);
 
-        // Exclude CSRF token verification for sanctum CSRF endpoint and login/register
+        // Exclude CSRF token verification for all API routes (using tokens)
         $middleware->validateCsrfTokens(except: [
-            'api/sanctum/csrf-cookie',
-            'api/login',
-            'api/register',
+            'api/*',
             'health',
         ]);
     })

@@ -29,10 +29,12 @@ class AuthController extends Controller
             ]);
         }
 
-        // Login the user (creates session)
-        Auth::login($user);
+        // Create Token
+        $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
+            'access_token' => $token,
+            'token_type' => 'Bearer',
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
@@ -61,9 +63,11 @@ class AuthController extends Controller
             'role' => $request->role ?? 'client',
         ]);
 
-        Auth::login($user);
+        $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
+            'access_token' => $token,
+            'token_type' => 'Bearer',
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
@@ -78,10 +82,8 @@ class AuthController extends Controller
      */
     public function logout(Request $request)
     {
-        Auth::guard('web')->logout();
-
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        // Delete current token
+        $request->user()->currentAccessToken()->delete();
 
         return response()->json(['message' => 'Logged out successfully']);
     }
