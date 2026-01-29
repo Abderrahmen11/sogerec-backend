@@ -18,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Allow Railway health check host
         $middleware->trustHosts(at: [
             'healthcheck.railway.app',
+            'sogerec-backend-production.up.railway.app',
         ], subdomains: false);
 
         $middleware->alias([

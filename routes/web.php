@@ -29,7 +29,7 @@ Route::get('/', function () {
             'notifications' => '/api/notifications',
             'users' => '/api/users',
         ]
-    ]);
+    ], 200);
 });
 
 // Catch-all for 404s on web routes (SPA fallback would be handled by frontend)
