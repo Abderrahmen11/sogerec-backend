@@ -19,7 +19,7 @@ Route::get('/health', function () {
 // API Documentation or main page
 Route::get('/', function () {
     return response()->json([
-        'message' => 'SogeFix API',
+        'message' => 'Sogerec API',
         'version' => '1.0.0',
         'status' => 'running',
         'endpoints' => [
