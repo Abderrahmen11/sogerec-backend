@@ -89,11 +89,12 @@ class TicketController extends Controller
             'title' => 'sometimes|string|max:255',
             'description' => 'sometimes|string',
             'priority' => 'sometimes|in:low,medium,high,urgent',
-            'status' => 'sometimes|in:open,in_progress,resolved,closed',
+            'status' => 'sometimes|in:open,in_progress,resolved,closed,cancelled',
             'assigned_to' => 'sometimes|exists:users,id',
+            'cancellation_reason' => 'sometimes|string|nullable',
         ]);
 
-        $ticket->update($request->only(['title', 'description', 'priority', 'status', 'assigned_to']));
+        $ticket->update($request->only(['title', 'description', 'priority', 'status', 'assigned_to', 'cancellation_reason']));
 
         return response()->json($ticket->load(['user', 'assignedTo']));
     }
@@ -115,7 +116,7 @@ class TicketController extends Controller
     public function updateStatus($id, Request $request)
     {
         $request->validate([
-            'status' => 'required|in:open,in_progress,resolved,closed',
+            'status' => 'required|in:open,in_progress,resolved,closed,cancelled',
         ]);
 
         $ticket = Ticket::findOrFail($id);
