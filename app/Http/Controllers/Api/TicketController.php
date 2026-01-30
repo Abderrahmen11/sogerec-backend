@@ -52,6 +52,16 @@ class TicketController extends Controller
     /**
      * Create a new ticket
      */
+    protected $ticketService;
+
+    public function __construct(\App\Services\TicketService $ticketService)
+    {
+        $this->ticketService = $ticketService;
+    }
+
+    /**
+     * Create a new ticket
+     */
     public function store(Request $request)
     {
         $request->validate([
@@ -61,21 +71,9 @@ class TicketController extends Controller
             'category' => 'required|string',
         ]);
 
-        $ticket = Ticket::create([
-            'title' => $request->title,
-            'description' => $request->description,
-            'priority' => $request->priority,
-            'category' => $request->category,
-            'status' => 'open',
-            'user_id' => $request->user()->id,
-        ]);
-
-        // Notify admins
-        $admins = \App\Models\User::where('role', 'admin')->get();
-        \Illuminate\Support\Facades\Notification::send($admins, new \App\Notifications\NewTicketNotification($ticket));
+        $ticket = $this->ticketService->createTicket($request->all(), $request->user());
 
         return response()->json($ticket->load(['user', 'assignedTo']), 201);
-
     }
 
     /**
@@ -94,9 +92,16 @@ class TicketController extends Controller
             'cancellation_reason' => 'sometimes|string|nullable',
         ]);
 
-        $ticket->update($request->only(['title', 'description', 'priority', 'status', 'assigned_to', 'cancellation_reason']));
+        $updatedTicket = $this->ticketService->updateTicket($ticket, $request->only([
+            'title',
+            'description',
+            'priority',
+            'status',
+            'assigned_to',
+            'cancellation_reason'
+        ]));
 
-        return response()->json($ticket->load(['user', 'assignedTo']));
+        return response()->json($updatedTicket);
     }
 
     /**
@@ -105,7 +110,7 @@ class TicketController extends Controller
     public function destroy($id)
     {
         $ticket = Ticket::findOrFail($id);
-        $ticket->delete();
+        $this->ticketService->deleteTicket($ticket);
 
         return response()->json(['message' => 'Ticket deleted successfully']);
     }
@@ -120,9 +125,9 @@ class TicketController extends Controller
         ]);
 
         $ticket = Ticket::findOrFail($id);
-        $ticket->update(['status' => $request->status]);
+        $updatedTicket = $this->ticketService->updateStatus($ticket, $request->status);
 
-        return response()->json($ticket->load(['user', 'assignedTo']));
+        return response()->json($updatedTicket);
     }
 
     /**
@@ -135,8 +140,8 @@ class TicketController extends Controller
         ]);
 
         $ticket = Ticket::findOrFail($id);
+        $this->ticketService->addComment($ticket, $request->comment);
 
-        // For now, just return success. You can implement a comments table later
         return response()->json(['message' => 'Comment added successfully']);
     }
 
