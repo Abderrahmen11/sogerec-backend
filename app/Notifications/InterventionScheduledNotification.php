@@ -8,17 +8,15 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
 
-class InterventionStatusUpdatedNotification extends Notification implements ShouldQueue
+class InterventionScheduledNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
     protected $intervention;
-    protected $message;
 
-    public function __construct(Intervention $intervention, $message)
+    public function __construct(Intervention $intervention)
     {
         $this->intervention = $intervention;
-        $this->message = $message;
     }
 
     public function via($notifiable)
@@ -30,9 +28,9 @@ class InterventionStatusUpdatedNotification extends Notification implements Shou
     {
         return [
             'intervention_id' => $this->intervention->id,
-            'status' => $this->intervention->status,
-            'message' => $this->message,
-            'type' => 'intervention_status_updated',
+            'ticket_id' => $this->intervention->ticket_id,
+            'message' => "A technician has been assigned to your ticket #{$this->intervention->ticket->id}.",
+            'type' => 'intervention_scheduled',
         ];
     }
 
@@ -40,9 +38,9 @@ class InterventionStatusUpdatedNotification extends Notification implements Shou
     {
         return new BroadcastMessage([
             'intervention_id' => $this->intervention->id,
-            'status' => $this->intervention->status,
-            'message' => $this->message,
-            'type' => 'intervention_status_updated',
+            'ticket_id' => $this->intervention->ticket_id,
+            'message' => "A technician has been assigned to your ticket #{$this->intervention->ticket->id}.",
+            'type' => 'intervention_scheduled',
         ]);
     }
 }

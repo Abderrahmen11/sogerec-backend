@@ -104,6 +104,12 @@ class InterventionController extends Controller
                 $technician->notify(new InterventionAssignedNotification($intervention));
             }
 
+            // Notify Client (Ticket Creator)
+            $ticket = $intervention->ticket;
+            if ($ticket && $ticket->user) {
+                $ticket->user->notify(new \App\Notifications\InterventionScheduledNotification($intervention));
+            }
+
             // Sync ticket status to open when an intervention is scheduled
             if ($intervention->ticket) {
                 $intervention->ticket->update(['status' => 'open']);
