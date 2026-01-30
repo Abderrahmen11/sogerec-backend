@@ -195,11 +195,18 @@ class InterventionController extends Controller
             $intervention->ticket->update(['status' => $ticketStatus]);
         }
 
-        // Notify admins if status changed
+        // Notify admins and client if status changed
         if ($oldStatus !== $newStatus) {
+            // Notify admins
             $admins = User::where('role', 'admin')->get();
             $message = "Intervention #{$intervention->id} is now " . str_replace('_', ' ', $newStatus);
             Notification::send($admins, new InterventionStatusUpdatedNotification($intervention, $message));
+
+            // Notify client (ticket creator)
+            if ($intervention->ticket && $intervention->ticket->user) {
+                $clientMessage = "Your intervention #{$intervention->id} status has been updated to " . str_replace('_', ' ', $newStatus);
+                $intervention->ticket->user->notify(new InterventionStatusUpdatedNotification($intervention, $clientMessage));
+            }
         }
 
         return response()->json($intervention->load(['ticket', 'user']));
@@ -233,10 +240,16 @@ class InterventionController extends Controller
             $intervention->ticket->update(['status' => 'closed']);
         }
 
-        // Notify admins
+        // Notify admins and client
         $admins = User::where('role', 'admin')->get();
         $message = "Intervention #{$intervention->id} has been completed and report submitted";
         Notification::send($admins, new InterventionStatusUpdatedNotification($intervention, $message));
+
+        // Notify client (ticket creator)
+        if ($intervention->ticket && $intervention->ticket->user) {
+            $clientMessage = "Your intervention #{$intervention->id} has been completed. The technician has submitted the report.";
+            $intervention->ticket->user->notify(new InterventionStatusUpdatedNotification($intervention, $clientMessage));
+        }
 
         return response()->json(['message' => 'Report submitted successfully', 'intervention' => $intervention]);
 
