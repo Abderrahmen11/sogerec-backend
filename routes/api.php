@@ -8,10 +8,14 @@ use App\Http\Controllers\Api\InterventionController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\AdminStatsController;
+use App\Http\Controllers\Api\MessageController;
 
 // Public auth routes
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
+
+// Public contact route
+Route::post('/contact', [MessageController::class, 'store']);
 
 // Protected API routes with Sanctum auth
 Route::middleware(['auth:sanctum'])->group(function () {
@@ -24,6 +28,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::apiResource('users', UserController::class);
         Route::put('/users/profile', [UserController::class, 'updateProfile']);
         Route::post('/users/change-password', [UserController::class, 'changePassword']);
+
+        // Messages
+        Route::get('/messages', [MessageController::class, 'index']);
+        Route::patch('/messages/{id}/read', [MessageController::class, 'markAsRead']);
     });
 
     // Tickets - All authenticated users (internal controller handles filtering)
