@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Ticket;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class TicketController extends Controller
@@ -46,7 +47,11 @@ class TicketController extends Controller
     public function show($id)
     {
         $ticket = Ticket::with(['user', 'assignedTo'])->findOrFail($id);
-        return response()->json($ticket);
+        $response = $ticket->toArray();
+        // Ensure frontend receives explicit assignment data
+        $response['assigned_to_user_id'] = $ticket->assigned_to;
+        $response['technician_name'] = $ticket->assignedTo?->name;
+        return response()->json($response);
     }
 
     /**
@@ -88,9 +93,20 @@ class TicketController extends Controller
             'description' => 'sometimes|string',
             'priority' => 'sometimes|in:low,medium,high,urgent',
             'status' => 'sometimes|in:open,in_progress,resolved,closed,cancelled',
-            'assigned_to' => 'sometimes|exists:users,id',
+            'assigned_to' => 'sometimes|nullable|exists:users,id',
             'cancellation_reason' => 'sometimes|string|nullable',
         ]);
+
+        // Validate technician role when assigning
+        if ($request->has('assigned_to') && $request->assigned_to) {
+            $technician = User::find($request->assigned_to);
+            if (!$technician || $technician->role !== 'technician') {
+                return response()->json([
+                    'message' => 'Assigned user must have technician role.',
+                    'error' => 'INVALID_TECHNICIAN'
+                ], 422);
+            }
+        }
 
         $updatedTicket = $this->ticketService->updateTicket($ticket, $request->only([
             'title',
@@ -101,7 +117,11 @@ class TicketController extends Controller
             'cancellation_reason'
         ]));
 
-        return response()->json($updatedTicket);
+        $response = $updatedTicket->toArray();
+        $response['assigned_to_user_id'] = $updatedTicket->assigned_to;
+        $response['technician_name'] = $updatedTicket->assignedTo?->name;
+
+        return response()->json($response);
     }
 
     /**
@@ -121,7 +141,7 @@ class TicketController extends Controller
     public function updateStatus($id, Request $request)
     {
         $request->validate([
-            'status' => 'required|in:open,in_progress,resolved,closed,cancelled',
+            'status' => 'required|in:open,assigned,in_progress,resolved,closed,cancelled',
         ]);
 
         $ticket = Ticket::findOrFail($id);

@@ -4,11 +4,13 @@ namespace App\Notifications;
 
 use App\Models\Intervention;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
 
-class InterventionAssignedNotification extends Notification implements ShouldQueue
+/**
+ * Sent synchronously so technician receives notification immediately (no queue worker required).
+ */
+class InterventionAssignedNotification extends Notification
 {
     use Queueable;
 
@@ -21,7 +23,7 @@ class InterventionAssignedNotification extends Notification implements ShouldQue
 
     public function via($notifiable)
     {
-        return ['database', 'broadcast'];
+        return ['database']; // Database only - ensures notification is stored without queue/broadcast
     }
 
     public function toArray($notifiable)

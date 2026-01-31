@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Ticket;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -66,10 +67,26 @@ class User extends Authenticatable
     }
 
     /**
-     * Get the interventions for the user.
+     * Get the interventions assigned to this user (technician).
      */
     public function interventions()
     {
         return $this->hasMany(Intervention::class);
+    }
+
+    /**
+     * Get tickets created by this user (client).
+     */
+    public function tickets()
+    {
+        return $this->hasMany(Ticket::class);
+    }
+
+    /**
+     * Get reports submitted by this user (technician).
+     */
+    public function reports()
+    {
+        return $this->hasMany(InterventionReport::class, 'technician_id');
     }
 }

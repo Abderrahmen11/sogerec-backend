@@ -14,7 +14,7 @@ return new class extends Migration {
             $table->id();
             $table->string('title');
             $table->text('description')->nullable();
-            $table->enum('status', ['planned', 'in_progress', 'completed', 'cancelled'])->default('planned');
+            $table->enum('status', ['pending', 'scheduled', 'in_progress', 'completed', 'cancelled'])->default('pending');
             $table->dateTime('scheduled_at')->nullable();
             $table->foreignId('ticket_id')->nullable()->constrained()->onDelete('set null');
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade'); // Technician

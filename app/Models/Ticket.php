@@ -11,6 +11,16 @@ class Ticket extends Model
 
     protected $fillable = ['user_id', 'title', 'description', 'priority', 'status', 'category', 'assigned_to', 'cancellation_reason'];
 
+    /**
+     * Appended attribute for API compatibility - ensures frontend receives assigned technician.
+     */
+    protected $appends = ['assigned_to_user'];
+
+    public function getAssignedToUserAttribute()
+    {
+        return $this->assignedTo;
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);

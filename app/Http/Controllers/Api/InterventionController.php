@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\InterventionAssigned;
 use App\Http\Controllers\Controller;
 use App\Models\Intervention;
+use App\Models\InterventionReport;
+use App\Models\Planning;
 use App\Models\User;
-use App\Notifications\InterventionAssignedNotification;
 use App\Notifications\InterventionStatusUpdatedNotification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 
 
@@ -19,7 +22,7 @@ class InterventionController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        $query = Intervention::with(['ticket', 'user']);
+        $query = Intervention::with(['ticket.user', 'user']);
 
         // Role-based filtering
         if ($user->role === 'client') {
@@ -76,11 +79,23 @@ class InterventionController extends Controller
     {
         $request->validate([
             'ticket_id' => 'required|exists:tickets,id',
-            'user_id' => 'sometimes|nullable|exists:users,id',
+            'user_id' => 'required|exists:users,id',
             'scheduled_at' => 'sometimes|nullable|date',
             'title' => 'sometimes|string|max:255',
             'description' => 'sometimes|string',
+            'location' => 'sometimes|string|max:255',
+            'latitude' => 'sometimes|nullable|numeric|between:-90,90',
+            'longitude' => 'sometimes|nullable|numeric|between:-180,180',
         ]);
+
+        // Validate technician role - MUST have technician role
+        $technician = User::find($request->user_id);
+        if (!$technician || $technician->role !== 'technician') {
+            return response()->json([
+                'message' => 'Invalid technician assignment. User must have technician role.',
+                'error' => 'INVALID_TECHNICIAN'
+            ], 422);
+        }
 
         // Automatic status logic
         $status = Intervention::STATUS_PENDING;
@@ -88,38 +103,94 @@ class InterventionController extends Controller
             $status = Intervention::STATUS_SCHEDULED;
         }
 
-        $intervention = Intervention::create([
-            'title' => $request->title ?? "Intervention for Ticket #{$request->ticket_id}",
-            'ticket_id' => $request->ticket_id,
-            'user_id' => $request->user_id,
-            'scheduled_at' => $request->scheduled_at,
-            'description' => $request->description,
-            'status' => $status,
-        ]);
+        $intervention = null;
+        $assignmentPersisted = false;
 
-        // Notify technician if scheduled
-        if ($status === Intervention::STATUS_SCHEDULED && $intervention->user_id) {
-            $technician = User::find($request->user_id);
-            if ($technician) {
-                $technician->notify(new InterventionAssignedNotification($intervention));
-            }
-
-            // Notify Client (Ticket Creator)
-            $ticket = $intervention->ticket;
-            if ($ticket && $ticket->user) {
-                $ticket->user->notify(new \App\Notifications\InterventionScheduledNotification($intervention));
-            }
-
-            // Sync ticket status and assignment when an intervention is scheduled
-            if ($intervention->ticket) {
-                $intervention->ticket->update([
-                    'status' => 'open',
-                    'assigned_to_user_id' => $request->user_id  // Assign ticket to technician
+        try {
+            $intervention = DB::transaction(function () use ($request, $status) {
+                $intervention = Intervention::create([
+                    'title' => $request->title ?? "Intervention for Ticket #{$request->ticket_id}",
+                    'ticket_id' => $request->ticket_id,
+                    'user_id' => $request->user_id,
+                    'scheduled_at' => $request->scheduled_at ?? null,
+                    'description' => $request->description ?? null,
+                    'location' => $request->location ?? null,
+                    'latitude' => $request->latitude ?? null,
+                    'longitude' => $request->longitude ?? null,
+                    'status' => $status,
                 ]);
-            }
+
+                $ticket = $intervention->ticket;
+                if (!$ticket) {
+                    throw new \RuntimeException('Ticket not found for intervention.');
+                }
+
+                // ALWAYS update ticket assignment when technician is provided
+                $ticket->update([
+                    'assigned_to' => $request->user_id,
+                    'status' => 'assigned',
+                ]);
+                $ticket->refresh();
+                if ((int) $ticket->assigned_to !== (int) $request->user_id) {
+                    throw new \RuntimeException('Assignment verification failed. assigned_to does not match.');
+                }
+
+                // Create planning entry when scheduled
+                if ($status === Intervention::STATUS_SCHEDULED && $request->filled('scheduled_at')) {
+                    Planning::updateOrCreate(
+                        ['intervention_id' => $intervention->id],
+                        [
+                            'technician_id' => $request->user_id,
+                            'planned_date' => \Carbon\Carbon::parse($request->scheduled_at)->toDateString(),
+                            'status' => 'scheduled',
+                        ]
+                    );
+                }
+
+                return $intervention;
+            });
+            $assignmentPersisted = true;
+
+            // Log successful persistence to prevent duplicate event dispatch
+            \Illuminate\Support\Facades\Log::info('Intervention assigned', [
+                'intervention_id' => $intervention->id,
+                'technician_id' => $intervention->user_id,
+                'ticket_id' => $intervention->ticket_id,
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('InterventionController@store - assignment failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to assign technician: ' . $e->getMessage(),
+                'error' => 'ASSIGNMENT_FAILED'
+            ], 500);
         }
 
-        return response()->json($intervention->load(['ticket', 'user']), 201);
+        $intervention->load(['ticket.assignedTo', 'user']);
+        $ticket = $intervention->ticket;
+
+        // Dispatch event ONLY ONCE after verified DB persistence (transaction committed)
+        if ($assignmentPersisted && $intervention->user_id) {
+            // Event dispatched ONCE, listeners will handle notifications
+            event(new InterventionAssigned($intervention));
+        }
+
+        // Build response with explicit assignment confirmation
+        $technicianName = $intervention->user?->name ?? $technician->name ?? null;
+
+        return response()->json([
+            'id' => $intervention->id,
+            'ticket_id' => $intervention->ticket_id,
+            'user_id' => $intervention->user_id,
+            'assigned_to_user_id' => $ticket->assigned_to,
+            'technician_name' => $technicianName,
+            'success' => true,
+            'assignment_confirmed' => true,
+            'intervention' => $intervention,
+        ], 201);
     }
 
     /**
@@ -133,9 +204,12 @@ class InterventionController extends Controller
             'scheduled_at' => 'sometimes|date',
             'status' => 'sometimes|in:scheduled,in_progress,completed,cancelled',
             'description' => 'sometimes|string',
+            'location' => 'sometimes|string|max:255',
+            'latitude' => 'sometimes|nullable|numeric|between:-90,90',
+            'longitude' => 'sometimes|nullable|numeric|between:-180,180',
         ]);
 
-        $intervention->update($request->only(['scheduled_at', 'status', 'description']));
+        $intervention->update($request->only(['scheduled_at', 'status', 'description', 'location', 'latitude', 'longitude']));
 
         return response()->json($intervention->load(['ticket', 'user']));
     }
@@ -182,16 +256,14 @@ class InterventionController extends Controller
 
         $intervention->update(['status' => $newStatus]);
 
-        // Sync ticket status
         if ($intervention->ticket) {
-            $ticketStatus = 'open';
-            if ($newStatus === Intervention::STATUS_IN_PROGRESS) {
-                $ticketStatus = 'in_progress';
-            } elseif ($newStatus === Intervention::STATUS_COMPLETED) {
-                $ticketStatus = 'closed';
-            } elseif ($newStatus === Intervention::STATUS_PENDING) {
-                $ticketStatus = 'open'; // Or whatever makes sense for a pending intervention
-            }
+            $ticketStatus = match ($newStatus) {
+                Intervention::STATUS_IN_PROGRESS => 'in_progress',
+                Intervention::STATUS_COMPLETED => 'closed',
+                Intervention::STATUS_CANCELLED => 'cancelled',
+                Intervention::STATUS_SCHEDULED => 'assigned',
+                default => $intervention->ticket->status,
+            };
             $intervention->ticket->update(['status' => $ticketStatus]);
         }
 
@@ -219,41 +291,48 @@ class InterventionController extends Controller
     {
         $request->validate([
             'report' => 'required|string',
+            'worked_hours' => 'sometimes|nullable|numeric|min:0',
         ]);
 
         $intervention = Intervention::findOrFail($id);
         $user = $request->user();
 
-        // Ownership check – Technicians can only submit reports for their own interventions
         if ($user->role === 'technician' && $intervention->user_id !== $user->id) {
             return response()->json(['message' => 'Unauthorized. This intervention is not assigned to you.'], 403);
         }
 
-        // Mark as completed
-        $intervention->update([
-            'status' => Intervention::STATUS_COMPLETED,
-            'completed_at' => now(),
-        ]);
+        $intervention = DB::transaction(function () use ($intervention, $request, $user) {
+            InterventionReport::create([
+                'intervention_id' => $intervention->id,
+                'technician_id' => $intervention->user_id,
+                'report' => $request->report,
+                'content' => $request->report,
+                'worked_hours' => $request->worked_hours,
+                'status' => 'submitted',
+            ]);
 
-        // Sync ticket status
-        if ($intervention->ticket) {
-            $intervention->ticket->update(['status' => 'closed']);
-        }
+            $intervention->update([
+                'status' => Intervention::STATUS_COMPLETED,
+                'completed_at' => now(),
+            ]);
 
-        // Notify admins and client
+            if ($intervention->ticket) {
+                $intervention->ticket->update(['status' => 'closed']);
+            }
+
+            return $intervention->fresh(['ticket', 'user', 'reports']);
+        });
+
         $admins = User::where('role', 'admin')->get();
         $message = "Intervention #{$intervention->id} has been completed and report submitted";
         Notification::send($admins, new InterventionStatusUpdatedNotification($intervention, $message));
 
-        // Notify client (ticket creator)
         if ($intervention->ticket && $intervention->ticket->user) {
             $clientMessage = "Your intervention #{$intervention->id} has been completed. The technician has submitted the report.";
             $intervention->ticket->user->notify(new InterventionStatusUpdatedNotification($intervention, $clientMessage));
         }
 
         return response()->json(['message' => 'Report submitted successfully', 'intervention' => $intervention]);
-
-
     }
 
     /**
@@ -261,7 +340,14 @@ class InterventionController extends Controller
      */
     public function planning(Request $request)
     {
-        $query = Intervention::with(['ticket', 'user']);
+        $user = $request->user();
+        $query = Intervention::with(['ticket.user', 'user']);
+
+        // Technicians see only their assigned interventions (user_id = technician_id)
+        if ($user->role === 'technician') {
+            $query->where('user_id', $user->id);
+        }
+        // Admins see all
 
         // Filter by date range if provided
         if ($request->has('start_date')) {
@@ -274,5 +360,61 @@ class InterventionController extends Controller
         $interventions = $query->orderBy('scheduled_at', 'asc')->get();
 
         return response()->json($interventions);
+    }
+
+    /**
+     * Generate a report for completed interventions (Admin only)
+     */
+    public function generateReport(Request $request)
+    {
+        $request->validate([
+            'intervention_id' => 'required|exists:interventions,id',
+            'title' => 'sometimes|string|max:255',
+            'summary' => 'required|string',
+            'findings' => 'sometimes|string',
+            'recommendations' => 'sometimes|string',
+        ]);
+
+        $intervention = Intervention::findOrFail($request->intervention_id);
+
+        // Ensure report is only for completed interventions
+        if ($intervention->status !== Intervention::STATUS_COMPLETED) {
+            return response()->json([
+                'message' => 'Report can only be generated for completed interventions.',
+                'status' => $intervention->status
+            ], 422);
+        }
+
+        $report = DB::transaction(function () use ($request, $intervention) {
+            return InterventionReport::create([
+                'intervention_id' => $intervention->id,
+                'technician_id' => $intervention->user_id,
+                'report' => $request->summary,
+                'content' => json_encode([
+                    'title' => $request->title ?? "Report for Intervention #{$intervention->id}",
+                    'summary' => $request->summary,
+                    'findings' => $request->findings ?? null,
+                    'recommendations' => $request->recommendations ?? null,
+                ]),
+                'status' => 'submitted',
+            ]);
+        });
+
+        return response()->json([
+            'message' => 'Report generated successfully',
+            'report' => $report
+        ], 201);
+    }
+
+    /**
+     * Get all reports (Admin only)
+     */
+    public function getReports(Request $request)
+    {
+        $reports = InterventionReport::with(['intervention', 'intervention.ticket'])
+            ->orderBy('created_at', 'desc')
+            ->paginate($request->get('per_page', 15));
+
+        return response()->json($reports);
     }
 }

@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\InterventionController;
+use App\Http\Controllers\Api\PlanningController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\AdminStatsController;
@@ -40,15 +41,20 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/tickets/{ticket}/comments', [TicketController::class, 'addComment']);
     Route::apiResource('tickets', TicketController::class);
 
-    // Interventions - All authenticated users (internal controller handles filtering for index/show)
-    Route::get('/interventions', [InterventionController::class, 'index']);
-    Route::get('/interventions/{id}', [InterventionController::class, 'show']);
-
-    // Interventions - Management (Admins & Technicians)
+    // Interventions - Admins & Technicians ONLY (NOT clients)
     Route::middleware('role:technician,admin')->group(function () {
+        Route::get('/interventions', [InterventionController::class, 'index']);
+        Route::get('/interventions/{id}', [InterventionController::class, 'show']);
         Route::get('/interventions/planning', [InterventionController::class, 'planning']);
         Route::patch('/interventions/{id}/status', [InterventionController::class, 'updateStatus']);
         Route::post('/interventions/{id}/report', [InterventionController::class, 'submitReport']);
+    });
+
+    // Planning - Admins & Technicians ONLY (NOT clients)
+    Route::middleware('role:technician,admin')->group(function () {
+        Route::get('/planning', [PlanningController::class, 'index']);
+        Route::get('/planning/{id}', [PlanningController::class, 'show']);
+        Route::get('/planning/technician/me', [PlanningController::class, 'myPlanning']);
     });
 
     // Interventions - Admin only
@@ -56,6 +62,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/interventions', [InterventionController::class, 'store']);
         Route::put('/interventions/{id}', [InterventionController::class, 'update']);
         Route::delete('/interventions/{id}', [InterventionController::class, 'destroy']);
+        Route::get('/reports', [InterventionController::class, 'getReports']);
+        Route::post('/reports', [InterventionController::class, 'generateReport']);
     });
 
 

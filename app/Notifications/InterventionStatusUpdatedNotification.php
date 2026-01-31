@@ -30,6 +30,7 @@ class InterventionStatusUpdatedNotification extends Notification implements Shou
     {
         return [
             'intervention_id' => $this->intervention->id,
+            'ticket_id' => $this->intervention->ticket_id,
             'status' => $this->intervention->status,
             'message' => $this->message,
             'type' => 'intervention_status_updated',
@@ -40,6 +41,7 @@ class InterventionStatusUpdatedNotification extends Notification implements Shou
     {
         return new BroadcastMessage([
             'intervention_id' => $this->intervention->id,
+            'ticket_id' => $this->intervention->ticket_id,
             'status' => $this->intervention->status,
             'message' => $this->message,
             'type' => 'intervention_status_updated',
