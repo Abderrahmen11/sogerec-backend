@@ -15,6 +15,13 @@ class InterventionPolicy
         //
     }
 
+    public function viewAny(User $user): bool
+    {
+        // Allow admins and technicians to list interventions
+        // Clients should not list interventions directly (only within tickets)
+        return in_array($user->role, ['admin', 'technician']);
+    }
+
     public function view(User $user, Intervention $intervention): bool
     {
         if ($user->role === 'admin') return true;
