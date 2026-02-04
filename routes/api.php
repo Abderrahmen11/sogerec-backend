@@ -43,18 +43,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Interventions - Admins & Technicians ONLY (NOT clients)
     Route::middleware('role:technician,admin')->group(function () {
+        Route::get('/interventions/planning', [InterventionController::class, 'planning']);
         Route::get('/interventions', [InterventionController::class, 'index']);
         Route::get('/interventions/{id}', [InterventionController::class, 'show']);
-        Route::get('/interventions/planning', [InterventionController::class, 'planning']);
         Route::patch('/interventions/{id}/status', [InterventionController::class, 'updateStatus']);
         Route::post('/interventions/{id}/report', [InterventionController::class, 'submitReport']);
     });
 
     // Planning - Admins & Technicians ONLY (NOT clients)
     Route::middleware('role:technician,admin')->group(function () {
+        Route::get('/planning/technician/me', [PlanningController::class, 'myPlanning']);
         Route::get('/planning', [PlanningController::class, 'index']);
         Route::get('/planning/{id}', [PlanningController::class, 'show']);
-        Route::get('/planning/technician/me', [PlanningController::class, 'myPlanning']);
     });
 
     // Interventions - Admin only
