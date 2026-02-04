@@ -32,6 +32,7 @@ class InterventionScheduledNotification extends Notification
         return [
             'intervention_id' => $this->intervention->id,
             'ticket_id' => $this->intervention->ticket_id,
+            'title' => 'Intervention Scheduled',
             'message' => "A technician has been assigned to your ticket #{$ticketId}.",
             'type' => 'intervention_scheduled',
         ];

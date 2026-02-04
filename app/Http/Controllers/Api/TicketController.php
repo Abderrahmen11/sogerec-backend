@@ -17,14 +17,8 @@ class TicketController extends Controller
         $user = $request->user();
         $query = Ticket::with(['user', 'assignedTo']);
 
-        // Role-based filtering
-        if ($user->role === 'client') {
-            $query->where('user_id', $user->id);
-        } elseif ($user->role === 'technician') {
-            // Technicians see tickets assigned to them
-            $query->where('assigned_to', $user->id);
-        }
-        // Admins see all
+        // Apply role-based filtering
+        $this->applyRoleFilters($query, $user);
 
         // Filter by status if provided
         if ($request->has('status')) {
@@ -44,9 +38,13 @@ class TicketController extends Controller
     /**
      * Get a single ticket
      */
-    public function show($id)
+    public function show(Request $request, $id)
     {
         $ticket = Ticket::with(['user', 'assignedTo'])->findOrFail($id);
+
+        // Authorization check
+        $this->authorizeTicketAccess($ticket, $request->user());
+
         $response = $ticket->toArray();
         // Ensure frontend receives explicit assignment data
         $response['assigned_to_user_id'] = $ticket->assigned_to;
@@ -88,6 +86,9 @@ class TicketController extends Controller
     {
         $ticket = Ticket::findOrFail($id);
 
+        // Authorization check
+        $this->authorizeTicketAction($ticket, $request->user());
+
         $request->validate([
             'title' => 'sometimes|string|max:255',
             'description' => 'sometimes|string',
@@ -97,7 +98,7 @@ class TicketController extends Controller
             'cancellation_reason' => 'sometimes|string|nullable',
         ]);
 
-        // Validate technician role when assigning
+        // Validate technician role when assigning (Admin only usually, but controller logic allows it)
         if ($request->has('assigned_to') && $request->assigned_to) {
             $technician = User::find($request->assigned_to);
             if (!$technician || $technician->role !== 'technician') {
@@ -127,9 +128,15 @@ class TicketController extends Controller
     /**
      * Delete a ticket
      */
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $ticket = Ticket::findOrFail($id);
+
+        // Only owner or admin can delete
+        if ($request->user()->role !== 'admin' && $ticket->user_id !== $request->user()->id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
         $this->ticketService->deleteTicket($ticket);
 
         return response()->json(['message' => 'Ticket deleted successfully']);
@@ -145,6 +152,10 @@ class TicketController extends Controller
         ]);
 
         $ticket = Ticket::findOrFail($id);
+
+        // Authorization check
+        $this->authorizeTicketAccess($ticket, $request->user());
+
         $updatedTicket = $this->ticketService->updateStatus($ticket, $request->status);
 
         return response()->json($updatedTicket);
@@ -160,6 +171,10 @@ class TicketController extends Controller
         ]);
 
         $ticket = Ticket::findOrFail($id);
+
+        // Authorization check
+        $this->authorizeTicketAccess($ticket, $request->user());
+
         $this->ticketService->addComment($ticket, $request->comment);
 
         return response()->json(['message' => 'Comment added successfully']);
@@ -170,7 +185,11 @@ class TicketController extends Controller
      */
     public function search(Request $request)
     {
+        $user = $request->user();
         $query = Ticket::with(['user', 'assignedTo']);
+
+        // Apply role-based filtering
+        $this->applyRoleFilters($query, $user);
 
         if ($request->has('q')) {
             $searchTerm = $request->q;
@@ -183,5 +202,56 @@ class TicketController extends Controller
         $tickets = $query->orderBy('created_at', 'desc')->get();
 
         return response()->json($tickets);
+    }
+
+    /**
+     * Helper to apply role-based filters to a ticket query
+     */
+    private function applyRoleFilters($query, $user)
+    {
+        if ($user->role === 'client' || $user->role === 'user') {
+            $query->where('user_id', $user->id);
+        } elseif ($user->role === 'technician') {
+            $query->where('assigned_to', $user->id);
+        }
+        // Admin sees everything
+    }
+
+    /**
+     * Helper to check if a user can access a specific ticket (view/comment)
+     */
+    private function authorizeTicketAccess($ticket, $user)
+    {
+        if ($user->role === 'admin')
+            return;
+
+        if (($user->role === 'client' || $user->role === 'user') && $ticket->user_id === $user->id)
+            return;
+
+        if ($user->role === 'technician' && $ticket->assigned_to === $user->id)
+            return;
+
+        abort(403, 'Unauthorized access to this ticket.');
+    }
+
+    /**
+     * Helper to check if a user can perform an action on a ticket (update)
+     */
+    private function authorizeTicketAction($ticket, $user)
+    {
+        if ($user->role === 'admin')
+            return;
+
+        // Clients can update their own tickets IF they are still open
+        if (($user->role === 'client' || $user->role === 'user') && $ticket->user_id === $user->id) {
+            return;
+        }
+
+        // Technicians can update tickets assigned to them
+        if ($user->role === 'technician' && $ticket->assigned_to === $user->id) {
+            return;
+        }
+
+        abort(403, 'Unauthorized action on this ticket.');
     }
 }

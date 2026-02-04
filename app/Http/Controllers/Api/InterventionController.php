@@ -269,15 +269,27 @@ class InterventionController extends Controller
 
         // Notify admins and client if status changed
         if ($oldStatus !== $newStatus) {
-            // Notify admins
-            $admins = User::where('role', 'admin')->get();
-            $message = "Intervention #{$intervention->id} is now " . str_replace('_', ' ', $newStatus);
-            Notification::send($admins, new InterventionStatusUpdatedNotification($intervention, $message));
+            try {
+                $techName = $intervention->user?->name ?? 'A technician';
+                $statusLabel = str_replace('_', ' ', $newStatus);
 
-            // Notify client (ticket creator)
-            if ($intervention->ticket && $intervention->ticket->user) {
-                $clientMessage = "Your intervention #{$intervention->id} status has been updated to " . str_replace('_', ' ', $newStatus);
-                $intervention->ticket->user->notify(new InterventionStatusUpdatedNotification($intervention, $clientMessage));
+                // Notify admins
+                $admins = User::where('role', 'admin')->get();
+                if ($admins->isNotEmpty()) {
+                    $adminMessage = "Intervention #{$intervention->id} has been updated to '{$statusLabel}' by {$techName}.";
+                    Notification::send($admins, new InterventionStatusUpdatedNotification($intervention, $adminMessage));
+                }
+
+                // Notify client (ticket creator)
+                if ($intervention->ticket && $intervention->ticket->user) {
+                    $clientMessage = "Your intervention #{$intervention->id} is now '{$statusLabel}'.";
+                    if ($newStatus === Intervention::STATUS_IN_PROGRESS) {
+                        $clientMessage = "Technician {$techName} has started working on your intervention #{$intervention->id}.";
+                    }
+                    $intervention->ticket->user->notify(new InterventionStatusUpdatedNotification($intervention, $clientMessage));
+                }
+            } catch (\Exception $e) {
+                \Log::error("Failed to send intervention status notification: " . $e->getMessage());
             }
         }
 
@@ -323,13 +335,20 @@ class InterventionController extends Controller
             return $intervention->fresh(['ticket', 'user', 'reports']);
         });
 
-        $admins = User::where('role', 'admin')->get();
-        $message = "Intervention #{$intervention->id} has been completed and report submitted";
-        Notification::send($admins, new InterventionStatusUpdatedNotification($intervention, $message));
+        try {
+            $admins = User::where('role', 'admin')->get();
+            $techName = $intervention->user?->name ?? 'The technician';
+            if ($admins->isNotEmpty()) {
+                $adminMessage = "Intervention #{$intervention->id} has been completed and a report submitted by {$techName}.";
+                Notification::send($admins, new InterventionStatusUpdatedNotification($intervention, $adminMessage));
+            }
 
-        if ($intervention->ticket && $intervention->ticket->user) {
-            $clientMessage = "Your intervention #{$intervention->id} has been completed. The technician has submitted the report.";
-            $intervention->ticket->user->notify(new InterventionStatusUpdatedNotification($intervention, $clientMessage));
+            if ($intervention->ticket && $intervention->ticket->user) {
+                $clientMessage = "Your intervention #{$intervention->id} has been successfully completed. You can now view the final report.";
+                $intervention->ticket->user->notify(new InterventionStatusUpdatedNotification($intervention, $clientMessage));
+            }
+        } catch (\Exception $e) {
+            \Log::error("Failed to send intervention completion notification: " . $e->getMessage());
         }
 
         return response()->json(['message' => 'Report submitted successfully', 'intervention' => $intervention]);

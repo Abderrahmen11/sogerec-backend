@@ -8,7 +8,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
 
-class InterventionStatusUpdatedNotification extends Notification implements ShouldQueue
+class InterventionStatusUpdatedNotification extends Notification
 {
     use Queueable;
 
@@ -23,7 +23,7 @@ class InterventionStatusUpdatedNotification extends Notification implements Shou
 
     public function via($notifiable)
     {
-        return ['database', 'broadcast'];
+        return ['database'];
     }
 
     public function toArray($notifiable)
@@ -32,19 +32,9 @@ class InterventionStatusUpdatedNotification extends Notification implements Shou
             'intervention_id' => $this->intervention->id,
             'ticket_id' => $this->intervention->ticket_id,
             'status' => $this->intervention->status,
+            'title' => $this->intervention->title ?? "Intervention Update",
             'message' => $this->message,
             'type' => 'intervention_status_updated',
         ];
-    }
-
-    public function toBroadcast($notifiable)
-    {
-        return new BroadcastMessage([
-            'intervention_id' => $this->intervention->id,
-            'ticket_id' => $this->intervention->ticket_id,
-            'status' => $this->intervention->status,
-            'message' => $this->message,
-            'type' => 'intervention_status_updated',
-        ]);
     }
 }

@@ -31,6 +31,7 @@ class InterventionAssignedNotification extends Notification
         return [
             'intervention_id' => $this->intervention->id,
             'ticket_id' => $this->intervention->ticket_id,
+            'title' => 'New Intervention Assigned',
             'message' => "You have been assigned a new intervention for Ticket #{$this->intervention->ticket_id}",
             'type' => 'intervention_assigned',
         ];
