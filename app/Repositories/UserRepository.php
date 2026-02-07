@@ -15,8 +15,4 @@ class UserRepository
     {
         return User::where('role', 'technician')->orderBy('name')->get();
     }
-
-class UserRepository
-{
-    //
 }

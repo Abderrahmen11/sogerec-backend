@@ -22,8 +22,4 @@ class TicketRepository
         }
         return $query->orderBy('created_at', 'desc')->get();
     }
-
-class TicketRepository
-{
-    //
 }

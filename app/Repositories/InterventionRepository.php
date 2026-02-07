@@ -15,8 +15,4 @@ class InterventionRepository
     {
         return Intervention::with(['ticket', 'user'])->where('user_id', $technicianId)->orderBy('scheduled_at', 'asc')->get();
     }
-
-class InterventionRepository
-{
-    //
 }
