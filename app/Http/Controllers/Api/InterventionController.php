@@ -16,9 +16,6 @@ use Illuminate\Support\Facades\Notification;
 
 class InterventionController extends Controller
 {
-    /**
-     * Get all interventions
-     */
     public function index(Request $request)
     {
         $user = $request->user();
@@ -46,9 +43,6 @@ class InterventionController extends Controller
         return response()->json($interventions);
     }
 
-    /**
-     * Get a single intervention
-     */
     public function show($id, Request $request)
     {
         $intervention = Intervention::with(['ticket.user', 'user'])->findOrFail($id);
@@ -72,9 +66,6 @@ class InterventionController extends Controller
         return response()->json(['message' => 'Unauthorized access to this intervention'], 403);
     }
 
-    /**
-     * Create a new intervention
-     */
     public function store(Request $request)
     {
         $request->validate([
@@ -193,9 +184,6 @@ class InterventionController extends Controller
         ], 201);
     }
 
-    /**
-     * Update an intervention
-     */
     public function update($id, Request $request)
     {
         $intervention = Intervention::findOrFail($id);
@@ -214,9 +202,6 @@ class InterventionController extends Controller
         return response()->json($intervention->load(['ticket', 'user']));
     }
 
-    /**
-     * Delete an intervention
-     */
     public function destroy($id)
     {
         $intervention = Intervention::findOrFail($id);
@@ -225,9 +210,6 @@ class InterventionController extends Controller
         return response()->json(['message' => 'Intervention deleted successfully']);
     }
 
-    /**
-     * Update intervention status
-     */
     public function updateStatus($id, Request $request)
     {
         $request->validate([
@@ -296,9 +278,6 @@ class InterventionController extends Controller
         return response()->json($intervention->load(['ticket', 'user']));
     }
 
-    /**
-     * Submit intervention report
-     */
     public function submitReport($id, Request $request)
     {
         $request->validate([
@@ -354,9 +333,6 @@ class InterventionController extends Controller
         return response()->json(['message' => 'Report submitted successfully', 'intervention' => $intervention]);
     }
 
-    /**
-     * Get planning/calendar view of interventions
-     */
     public function planning(Request $request)
     {
         $user = $request->user();
@@ -381,9 +357,6 @@ class InterventionController extends Controller
         return response()->json($interventions);
     }
 
-    /**
-     * Generate a report for completed interventions (Admin only)
-     */
     public function generateReport(Request $request)
     {
         $request->validate([
@@ -425,9 +398,6 @@ class InterventionController extends Controller
         ], 201);
     }
 
-    /**
-     * Get all reports (Admin only)
-     */
     public function getReports(Request $request)
     {
         $reports = InterventionReport::with(['intervention', 'intervention.ticket'])

@@ -10,10 +10,6 @@ class InterventionPolicy
 {
     use HandlesAuthorization;
 
-    public function __construct()
-    {
-        //
-    }
 
     public function viewAny(User $user): bool
     {
@@ -24,16 +20,21 @@ class InterventionPolicy
 
     public function view(User $user, Intervention $intervention): bool
     {
-        if ($user->role === 'admin') return true;
-        if ($user->role === 'technician' && $intervention->user_id === $user->id) return true;
-        if ($user->role === 'client' && $intervention->ticket && $intervention->ticket->user_id === $user->id) return true;
+        if ($user->role === 'admin')
+            return true;
+        if ($user->role === 'technician' && $intervention->user_id === $user->id)
+            return true;
+        if ($user->role === 'client' && $intervention->ticket && $intervention->ticket->user_id === $user->id)
+            return true;
         return false;
     }
 
     public function update(User $user, Intervention $intervention): bool
     {
-        if ($user->role === 'admin') return true;
-        if ($user->role === 'technician' && $intervention->user_id === $user->id) return true;
+        if ($user->role === 'admin')
+            return true;
+        if ($user->role === 'technician' && $intervention->user_id === $user->id)
+            return true;
         return false;
     }
 

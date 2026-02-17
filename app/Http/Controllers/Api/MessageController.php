@@ -11,9 +11,6 @@ use Illuminate\Support\Facades\Notification;
 
 class MessageController extends Controller
 {
-    /**
-     * Store a new contact message
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -35,18 +32,12 @@ class MessageController extends Controller
         ], 201);
     }
 
-    /**
-     * Get all messages (admin only)
-     */
     public function index()
     {
         $messages = Message::orderBy('created_at', 'desc')->get();
         return response()->json($messages);
     }
 
-    /**
-     * Mark message as read
-     */
     public function markAsRead($id)
     {
         $message = Message::findOrFail($id);
